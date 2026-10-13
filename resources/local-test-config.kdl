@@ -1,0 +1,11 @@
+// Minimal nested-session config without desktop autostart programs.
+// Nested niri uses Alt for Mod; Alt+Shift+E exits.
+view-scroll-step 40
+
+binds {
+    Mod+Return { spawn "kitty"; }
+    Mod+Q { close-window; }
+    Mod+Shift+E { quit; }
+    Mod+WheelScrollDown { scroll-view-right; }
+    Mod+WheelScrollUp { scroll-view-left; }
+}
