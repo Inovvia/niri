@@ -15,6 +15,7 @@ use super::*;
 
 mod animations;
 mod fullscreen;
+mod view_scroll;
 
 impl<W: LayoutElement> Default for Layout<W> {
     fn default() -> Self {
@@ -512,6 +513,8 @@ enum Op {
     ToggleColumnTabbedDisplay,
     SetColumnDisplay(#[proptest(strategy = "arbitrary_column_display()")] ColumnDisplay),
     CenterColumn,
+    ScrollViewLeft,
+    ScrollViewRight,
     CenterWindow {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
@@ -1177,6 +1180,8 @@ impl Op {
             Op::ToggleColumnTabbedDisplay => layout.toggle_column_tabbed_display(),
             Op::SetColumnDisplay(display) => layout.set_column_display(display),
             Op::CenterColumn => layout.center_column(),
+            Op::ScrollViewLeft => layout.scroll_view(false),
+            Op::ScrollViewRight => layout.scroll_view(true),
             Op::CenterWindow { id } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.center_window(id.as_ref());
@@ -1842,6 +1847,8 @@ fn operations_dont_panic() {
         Op::ConsumeWindowIntoColumn,
         Op::ExpelWindowFromColumn,
         Op::CenterColumn,
+        Op::ScrollViewLeft,
+        Op::ScrollViewRight,
         Op::FocusWorkspaceDown,
         Op::FocusWorkspaceUp,
         Op::FocusWorkspace(1),
@@ -2016,6 +2023,8 @@ fn operations_from_starting_state_dont_panic() {
         Op::ConsumeWindowIntoColumn,
         Op::ExpelWindowFromColumn,
         Op::CenterColumn,
+        Op::ScrollViewLeft,
+        Op::ScrollViewRight,
         Op::FocusWorkspaceDown,
         Op::FocusWorkspaceUp,
         Op::FocusWorkspace(1),

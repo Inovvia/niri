@@ -66,8 +66,73 @@ pub use crate::workspace::{Workspace, WorkspaceLayoutPart};
 
 const RECURSION_LIMIT: u8 = 10;
 
+/// Distance per viewport scroll action, in logical pixels.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ViewScrollStep(pub f64);
+
+impl Default for ViewScrollStep {
+    fn default() -> Self {
+        Self(40.)
+    }
+}
+
+impl<S: knuffel::traits::ErrorSpan> knuffel::Decode<S> for ViewScrollStep {
+    fn decode_node(
+        node: &knuffel::ast::SpannedNode<S>,
+        ctx: &mut knuffel::decode::Context<S>,
+    ) -> Result<Self, DecodeError<S>> {
+        #[derive(knuffel::Decode)]
+        struct Step(#[knuffel(argument)] ViewScrollStep);
+
+        let Step(value) = Step::decode_node(node, ctx)?;
+        Ok(value)
+    }
+}
+
+impl<S: knuffel::traits::ErrorSpan> knuffel::DecodeScalar<S> for ViewScrollStep {
+    fn type_check(
+        type_name: &Option<knuffel::span::Spanned<knuffel::ast::TypeName, S>>,
+        ctx: &mut knuffel::decode::Context<S>,
+    ) {
+        if let Some(name) = type_name {
+            ctx.emit_error(DecodeError::unexpected(
+                name,
+                "type name",
+                "no type name expected",
+            ));
+        }
+    }
+
+    fn raw_decode(
+        literal: &knuffel::span::Spanned<knuffel::ast::Literal, S>,
+        ctx: &mut knuffel::decode::Context<S>,
+    ) -> Result<Self, DecodeError<S>> {
+        let value = match &**literal {
+            knuffel::ast::Literal::Int(value) => {
+                let value: u64 = value
+                    .try_into()
+                    .map_err(|err| DecodeError::conversion(literal, err))?;
+                value as f64
+            }
+            knuffel::ast::Literal::Decimal(value) => value
+                .try_into()
+                .map_err(|err| DecodeError::conversion(literal, err))?,
+            _ => return Err(DecodeError::unsupported(literal, "expected a number")),
+        };
+        if !value.is_finite() || value <= 0. {
+            ctx.emit_error(DecodeError::conversion(
+                literal,
+                "view-scroll-step must be a positive, finite number",
+            ));
+            return Ok(Self::default());
+        }
+        Ok(Self(value))
+    }
+}
+
 #[derive(Debug, Default, PartialEq)]
 pub struct Config {
+    pub view_scroll_step: ViewScrollStep,
     pub input: Input,
     pub outputs: Outputs,
     pub spawn_at_startup: Vec<SpawnAtStartup>,
@@ -195,6 +260,9 @@ where
             }
 
             match name {
+                "view-scroll-step" => {
+                    config.borrow_mut().view_scroll_step = ViewScrollStep::decode_node(node, ctx)?;
+                }
                 "input" => m_merge!(input),
                 "cursor" => m_merge!(cursor),
                 "clipboard" => m_merge!(clipboard),
@@ -640,6 +708,55 @@ mod tests {
         assert_eq!(config.input.keyboard.repeat_rate, 25);
     }
 
+    #[test]
+    fn view_scroll_step_and_actions() {
+        assert_eq!(Config::parse_mem("").unwrap().view_scroll_step.0, 40.);
+        for value in ["20", "0.5", "80.25", "1e100"] {
+            let config = Config::parse_mem(&format!("view-scroll-step {value}")).unwrap();
+            assert_eq!(config.view_scroll_step.0, value.parse::<f64>().unwrap());
+        }
+        let config = Config::parse_mem(
+            r#"
+            view-scroll-step 25
+            binds {
+                Mod+WheelScrollDown { scroll-view-right; }
+                Mod+WheelScrollUp { scroll-view-left; }
+            }
+        "#,
+        )
+        .unwrap();
+        assert_eq!(config.binds.0[0].action, Action::ScrollViewRight);
+        assert_eq!(config.binds.0[1].action, Action::ScrollViewLeft);
+        assert_eq!(
+            Action::from(niri_ipc::Action::ScrollViewLeft {}),
+            Action::ScrollViewLeft
+        );
+        assert_eq!(
+            Action::from(niri_ipc::Action::ScrollViewRight {}),
+            Action::ScrollViewRight
+        );
+    }
+
+    #[test]
+    fn invalid_view_scroll_steps() {
+        for input in [
+            "view-scroll-step 0",
+            "view-scroll-step -1",
+            "view-scroll-step -0.5",
+            "view-scroll-step 1e999",
+            "view-scroll-step true",
+            "view-scroll-step null",
+            "view-scroll-step \"40\"",
+            "view-scroll-step \"NaN\"",
+            "view-scroll-step",
+            "view-scroll-step 40 80",
+            "view-scroll-step value=40",
+            "view-scroll-step 40 { extra; }",
+        ] {
+            assert!(Config::parse_mem(input).is_err(), "accepted {input}");
+        }
+    }
+
     #[track_caller]
     fn do_parse(text: &str) -> Config {
         Config::parse_mem(text)
@@ -991,6 +1108,9 @@ mod tests {
 
         assert_debug_snapshot!(parsed, @r#"
         Config {
+            view_scroll_step: ViewScrollStep(
+                40.0,
+            ),
             input: Input {
                 keyboard: Keyboard {
                     xkb: Xkb {

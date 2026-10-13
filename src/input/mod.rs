@@ -1720,6 +1720,12 @@ impl State {
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }
+            Action::ScrollViewLeft | Action::ScrollViewRight => {
+                self.niri
+                    .layout
+                    .scroll_view(matches!(action, Action::ScrollViewRight));
+                self.niri.queue_redraw_all();
+            }
             Action::CenterWindow => {
                 self.niri.layout.center_window(None);
                 // FIXME: granular

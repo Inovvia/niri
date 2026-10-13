@@ -53,6 +53,9 @@ pub struct ScrollingSpace<W: LayoutElement> {
     /// for natural handling of fullscreen windows, which must ignore work area padding.
     view_offset: ViewOffset,
 
+    /// Keep an arbitrary wheel-pan position until an explicit layout action takes over.
+    manually_panned: bool,
+
     /// Whether to activate the previous, rather than the next, column upon column removal.
     ///
     /// When a new column is created and removed with no focus changes in-between, it is more
@@ -328,6 +331,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             active_column_idx: 0,
             interactive_resize: None,
             view_offset: ViewOffset::Static(0.),
+            manually_panned: false,
             activate_prev_column_on_removal: None,
             view_offset_to_restore: None,
             closing_windows: Vec::new(),
@@ -360,8 +364,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         self.scale = scale;
         self.options = options;
 
-        // Apply always-center and such right away.
-        if !self.columns.is_empty() && !self.view_offset.is_gesture() {
+        // Preserve manual panning, while applying new bounds and centering rules.
+        if self.manually_panned {
+            self.clamp_manual_view();
+        } else if !self.columns.is_empty() && !self.view_offset.is_gesture() {
             self.animate_view_offset_to_column(None, self.active_column_idx, None);
         }
     }
@@ -726,6 +732,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         new_view_offset: f64,
         config: niri_config::Animation,
     ) {
+        self.manually_panned = false;
         let new_col_x = self.column_x(idx);
         let old_col_x = self.column_x(self.active_column_idx);
         let offset_delta = old_col_x - new_col_x;
@@ -810,6 +817,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
     fn activate_column_with_anim_config(&mut self, idx: usize, config: niri_config::Animation) {
         if self.active_column_idx == idx
+            && !self.manually_panned
             // During a DnD scroll, animate even when activating the same window, for DnD hold.
             && (self.columns.is_empty() || !self.view_offset.is_dnd_scroll())
         {
@@ -1232,6 +1240,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         }
 
         if self.columns.is_empty() {
+            self.manually_panned = false;
             return column;
         }
 
@@ -1265,11 +1274,15 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                     view_config,
                 );
             }
-        } else {
+        } else if !self.manually_panned || column_idx == self.active_column_idx {
             self.activate_column_with_anim_config(
                 min(self.active_column_idx, self.columns.len() - 1),
                 view_config,
             );
+        }
+
+        if self.manually_panned {
+            self.clamp_manual_view();
         }
 
         column
@@ -1416,7 +1429,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
             // We might need to move the view to ensure the resized window is still visible. But
             // only do it when the view isn't frozen by an interactive resize or a view gesture.
-            if self.interactive_resize.is_none() && !self.view_offset.is_gesture() {
+            let preserve_manual_pan =
+                self.manually_panned && is_normal && was_normal && resize.is_none();
+            if !preserve_manual_pan
+                && self.interactive_resize.is_none()
+                && !self.view_offset.is_gesture()
+            {
                 // Synchronize the horizontal view movement with the resize so that it looks nice.
                 // This is especially important for always-centered view.
                 let config = if ongoing_resize_anim {
@@ -1434,6 +1452,11 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 // resizing windows not look janky.
                 self.animate_view_offset_to_column_with_config(None, col_idx, None, config);
             }
+        }
+
+        // A non-active column can also resize and change the workspace bounds.
+        if self.manually_panned {
+            self.clamp_manual_view();
         }
     }
 
@@ -2223,6 +2246,55 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             self.set_fullscreen(&window, false);
             self.set_maximized(&window, false);
         }
+    }
+
+    /// Pan from the displayed position, replacing any animation or gesture.
+    pub fn scroll_view_by(&mut self, delta: f64) {
+        if self.columns.is_empty()
+            || !delta.is_finite()
+            || self.interactive_resize.is_some()
+            || self.columns[self.active_column_idx]
+                .sizing_mode()
+                .is_fullscreen()
+        {
+            return;
+        }
+
+        let position = self.view_offset.current() + delta;
+        self.view_offset = ViewOffset::Static(position);
+        self.manually_panned = true;
+        // These offsets belong to earlier focus/fullscreen transitions.
+        self.activate_prev_column_on_removal = None;
+        self.view_offset_to_restore = None;
+        self.clamp_manual_view();
+    }
+
+    fn clamp_manual_view(&mut self) {
+        if self.columns.is_empty() {
+            self.view_offset = ViewOffset::Static(0.);
+            self.manually_panned = false;
+            return;
+        }
+
+        // Use the same fit/centering rules as focus navigation at the two ends.
+        // For a column wider than the work area, allow reaching either edge.
+        let last = self.columns.len() - 1;
+        let last_x = self.column_x(last);
+        let left = self.compute_new_view_offset_for_column(
+            Some(-self.working_area.loc.x - self.options.layout.gaps),
+            0,
+            None,
+        );
+        let last_col = &self.columns[last];
+        let right = if self.working_area.size.w < self.data[last].width
+            && last_col.sizing_mode().is_normal()
+        {
+            last_x + self.data[last].width - self.working_area.size.w - self.working_area.loc.x
+        } else {
+            last_x + self.compute_new_view_offset_for_column(Some(left), last, None)
+        };
+        let position = self.view_pos().clamp(left.min(right), left.max(right));
+        self.view_offset = ViewOffset::Static(position - self.column_x(self.active_column_idx));
     }
 
     pub fn center_column(&mut self) {
@@ -3075,6 +3147,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return;
         }
 
+        self.manually_panned = false;
         let gesture = ViewGesture {
             current_view_offset: self.view_offset.current(),
             animation: None,
@@ -3098,6 +3171,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return;
         }
 
+        self.manually_panned = false;
         let gesture = ViewGesture {
             current_view_offset: self.view_offset.current(),
             animation: None,
@@ -3601,6 +3675,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         };
         self.interactive_resize = Some(resize);
 
+        self.manually_panned = false;
         self.view_offset.stop_anim_and_gesture();
 
         true

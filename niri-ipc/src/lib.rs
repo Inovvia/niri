@@ -456,6 +456,10 @@ pub enum Action {
     },
     /// Center the focused column on the screen.
     CenterColumn {},
+    /// Pan the active workspace left by view-scroll-step without changing focus.
+    ScrollViewLeft {},
+    /// Pan the active workspace right by view-scroll-step without changing focus.
+    ScrollViewRight {},
     /// Center a window on the screen.
     #[cfg_attr(
         feature = "clap",

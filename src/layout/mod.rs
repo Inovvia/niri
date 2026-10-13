@@ -395,6 +395,7 @@ enum MonitorSet<W: LayoutElement> {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Options {
+    pub view_scroll_step: niri_config::ViewScrollStep,
     pub layout: niri_config::Layout,
     pub animations: niri_config::Animations,
     pub gestures: niri_config::Gestures,
@@ -664,6 +665,7 @@ impl HitType {
 impl Options {
     fn from_config(config: &Config) -> Self {
         Self {
+            view_scroll_step: config.view_scroll_step,
             layout: config.layout.clone(),
             animations: config.animations.clone(),
             gestures: config.gestures,
@@ -2308,6 +2310,13 @@ impl<W: LayoutElement> Layout<W> {
             return;
         };
         workspace.center_column();
+    }
+
+    pub fn scroll_view(&mut self, right: bool) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.scroll_view(right);
     }
 
     pub fn center_window(&mut self, id: Option<&W::Id>) {

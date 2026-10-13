@@ -1187,6 +1187,16 @@ impl<W: LayoutElement> Workspace<W> {
         }
     }
 
+    pub fn scroll_view(&mut self, right: bool) {
+        // Like other column actions, leave floating focus alone.
+        if self.floating_is_active.get() {
+            return;
+        }
+        let step = self.options.view_scroll_step.0;
+        self.scrolling
+            .scroll_view_by(if right { step } else { -step });
+    }
+
     pub fn center_window(&mut self, id: Option<&W::Id>) {
         if id.map_or(self.floating_is_active.get(), |id| {
             self.floating.has_window(id)
