@@ -41,6 +41,9 @@ pub struct WindowRule {
     /// Render this window above the top layer-shell layer, like a fullscreen window does.
     #[knuffel(child, unwrap(argument))]
     pub render_above_top_layer: Option<bool>,
+    /// Whether to animate this window opening. Set to false to skip the window-open animation.
+    #[knuffel(child, unwrap(argument))]
+    pub open_animation: Option<bool>,
     #[knuffel(child, unwrap(argument))]
     pub on_xdg_activate: Option<OnXdgActivate>,
 

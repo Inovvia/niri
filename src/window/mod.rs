@@ -80,6 +80,9 @@ pub struct ResolvedWindowRules {
     /// Whether to render this window above the top layer-shell layer.
     pub render_above_top_layer: Option<bool>,
 
+    /// Whether to animate this window opening.
+    pub open_animation: Option<bool>,
+
     /// What to do on xdg-activation requests.
     pub on_xdg_activate: Option<OnXdgActivate>,
 
@@ -276,6 +279,10 @@ impl ResolvedWindowRules {
 
                 if let Some(x) = rule.render_above_top_layer {
                     resolved.render_above_top_layer = Some(x);
+                }
+
+                if let Some(x) = rule.open_animation {
+                    resolved.open_animation = Some(x);
                 }
 
                 if let Some(x) = rule.on_xdg_activate {

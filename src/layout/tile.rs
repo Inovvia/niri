@@ -573,6 +573,11 @@ impl<W: LayoutElement> Tile<W> {
     }
 
     pub fn start_open_animation(&mut self) {
+        // Windows can opt out of the open animation (e.g. fullscreen screenshot overlays).
+        if self.window.rules().open_animation == Some(false) {
+            return;
+        }
+
         self.open_animation = Some(OpenAnimation::new(Animation::new(
             self.clock.clone(),
             0.,
