@@ -1727,6 +1727,8 @@ impl<W: LayoutElement> Workspace<W> {
 
     pub fn render_above_top_layer(&self) -> bool {
         self.scrolling.render_above_top_layer()
+            || (self.floating_is_active == FloatingActive::Yes
+                && self.floating.render_above_top_layer())
     }
 
     pub fn is_floating_visible(&self) -> bool {

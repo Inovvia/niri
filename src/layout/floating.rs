@@ -1201,7 +1201,12 @@ impl<W: LayoutElement> FloatingSpace<W> {
             win.set_interactive_resize(resize_data);
 
             let border_config = self.options.layout.border.merged_with(&win.rules().border);
-            let bounds = compute_toplevel_bounds(border_config, self.working_area.size);
+            let bounds_size = if win.rules().ignore_struts == Some(true) {
+                self.view_size
+            } else {
+                self.working_area.size
+            };
+            let bounds = compute_toplevel_bounds(border_config, bounds_size);
             win.set_bounds(bounds);
 
             // If transactions are disabled, also disable combined throttling, for more
@@ -1284,10 +1289,28 @@ impl<W: LayoutElement> FloatingSpace<W> {
             }
         };
 
-        let width = resolve(width, self.working_area.size.w);
-        let height = resolve(height, self.working_area.size.h);
+        let area_size = if rules.ignore_struts == Some(true) {
+            self.view_size
+        } else {
+            self.working_area.size
+        };
+
+        let width = resolve(width, area_size.w);
+        let height = resolve(height, area_size.h);
 
         Size::from((width, height))
+    }
+
+    pub fn render_above_top_layer(&self) -> bool {
+        let Some(active) = self.active_window_id.as_ref() else {
+            return false;
+        };
+
+        let Some(idx) = self.tiles.iter().position(|t| t.window().id() == active) else {
+            return false;
+        };
+
+        self.tiles[idx].window().rules().render_above_top_layer == Some(true)
     }
 
     pub fn stored_or_default_tile_pos(&self, tile: &Tile<W>) -> Option<Point<f64, Logical>> {
@@ -1296,7 +1319,11 @@ impl<W: LayoutElement> FloatingSpace<W> {
             tile.window().rules().default_floating_position.map(|pos| {
                 let relative_to = pos.relative_to;
                 let size = tile.tile_size();
-                let area = self.working_area;
+                let area = if tile.window().rules().ignore_struts == Some(true) {
+                    Rectangle::from_size(self.view_size)
+                } else {
+                    self.working_area
+                };
 
                 let mut pos = Point::from((pos.x.0, pos.y.0));
                 if relative_to == RelativeTo::TopRight

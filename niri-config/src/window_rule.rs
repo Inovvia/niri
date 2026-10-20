@@ -34,6 +34,13 @@ pub struct WindowRule {
     pub open_floating: Option<bool>,
     #[knuffel(child, unwrap(argument))]
     pub open_focused: Option<bool>,
+    /// Make the initial floating size and position resolve against the whole output instead of
+    /// the working area (i.e. ignore layout struts and layer-shell exclusive zones).
+    #[knuffel(child, unwrap(argument))]
+    pub ignore_struts: Option<bool>,
+    /// Render this window above the top layer-shell layer, like a fullscreen window does.
+    #[knuffel(child, unwrap(argument))]
+    pub render_above_top_layer: Option<bool>,
     #[knuffel(child, unwrap(argument))]
     pub on_xdg_activate: Option<OnXdgActivate>,
 

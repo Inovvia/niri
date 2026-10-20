@@ -73,6 +73,13 @@ pub struct ResolvedWindowRules {
     /// Whether the window should open focused.
     pub open_focused: Option<bool>,
 
+    /// Whether this window's floating size and position should ignore struts and layer-shell
+    /// exclusive zones, resolving against the whole output instead.
+    pub ignore_struts: Option<bool>,
+
+    /// Whether to render this window above the top layer-shell layer.
+    pub render_above_top_layer: Option<bool>,
+
     /// What to do on xdg-activation requests.
     pub on_xdg_activate: Option<OnXdgActivate>,
 
@@ -261,6 +268,14 @@ impl ResolvedWindowRules {
 
                 if let Some(x) = rule.open_focused {
                     resolved.open_focused = Some(x);
+                }
+
+                if let Some(x) = rule.ignore_struts {
+                    resolved.ignore_struts = Some(x);
+                }
+
+                if let Some(x) = rule.render_above_top_layer {
+                    resolved.render_above_top_layer = Some(x);
                 }
 
                 if let Some(x) = rule.on_xdg_activate {
