@@ -1345,7 +1345,7 @@ impl<W: LayoutElement> FloatingSpace<W> {
                     pos.y += area.size.h / 2.0 - size.h / 2.0
                 }
 
-                pos + self.working_area.loc
+                pos + area.loc
             })
         })
     }
