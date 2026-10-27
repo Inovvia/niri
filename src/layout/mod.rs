@@ -1568,6 +1568,14 @@ impl<W: LayoutElement> Layout<W> {
     }
 
     pub fn activate_window(&mut self, window: &W::Id) {
+        self.activate_window_with_click(window, false)
+    }
+
+    pub fn activate_window_on_click(&mut self, window: &W::Id) {
+        self.activate_window_with_click(window, true)
+    }
+
+    fn activate_window_with_click(&mut self, window: &W::Id, clicked: bool) {
         if let Some(InteractiveMoveState::Moving(move_)) = &self.interactive_move {
             if move_.tile.window().id() == window {
                 return;
@@ -1585,7 +1593,7 @@ impl<W: LayoutElement> Layout<W> {
 
         for (monitor_idx, mon) in monitors.iter_mut().enumerate() {
             for (workspace_idx, ws) in mon.workspaces.iter_mut().enumerate() {
-                if ws.activate_window(window) {
+                if ws.activate_window_with_click(window, clicked) {
                     *active_monitor_idx = monitor_idx;
 
                     // If currently in the middle of a vertical swipe between the target workspace

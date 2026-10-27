@@ -289,3 +289,67 @@ fn oversized_single_column_can_pan_between_edges() {
     assert_eq!(position(&layout), right);
     layout.verify_invariants();
 }
+
+#[test]
+fn click_focus_preserves_view_and_keyboard_focus_reveals_window() {
+    let mut layout = setup();
+    let start = position(&layout);
+    layout.activate_window_on_click(&2);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations, Op::Communicate(2)]);
+    assert_eq!(position(&layout), start);
+    assert_eq!(
+        layout
+            .active_workspace()
+            .unwrap()
+            .scrolling()
+            .active_column_idx(),
+        1
+    );
+    layout.activate_window(&2);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert_ne!(position(&layout), start);
+    layout.verify_invariants();
+}
+
+#[test]
+fn click_focus_reveals_window_when_almost_entirely_hidden() {
+    let mut layout = setup();
+    let start = position(&layout);
+    layout.activate_window_on_click(&3);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert_ne!(position(&layout), start);
+    layout.verify_invariants();
+}
+
+#[test]
+fn click_scroll_threshold_is_one_percent_of_width() {
+    for visible_fraction in [0.005, 0.015] {
+        let mut layout = setup();
+        let (right_edge, width) = layout
+            .active_workspace()
+            .unwrap()
+            .scrolling()
+            .tiles_with_render_positions()
+            .find_map(|(tile, pos, _)| {
+                (*tile.window().id() == 1).then(|| {
+                    let width = tile.tile_size().w;
+                    (pos.x + width, width)
+                })
+            })
+            .unwrap();
+        layout.update_options(Options {
+            view_scroll_step: niri_config::ViewScrollStep(right_edge - width * visible_fraction),
+            ..Default::default()
+        });
+        layout.scroll_view(true);
+        let panned = position(&layout);
+        layout.activate_window_on_click(&1);
+        check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+        if visible_fraction > 0.01 {
+            assert_eq!(position(&layout), panned);
+        } else {
+            assert!(position(&layout) < panned);
+        }
+        layout.verify_invariants();
+    }
+}

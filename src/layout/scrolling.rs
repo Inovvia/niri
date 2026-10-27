@@ -1486,14 +1486,33 @@ impl<W: LayoutElement> ScrollingSpace<W> {
     }
 
     pub fn activate_window(&mut self, window: &W::Id) -> bool {
+        self.activate_window_with_click(window, false)
+    }
+
+    pub(super) fn activate_window_with_click(&mut self, window: &W::Id, clicked: bool) -> bool {
         let column_idx = self.columns.iter().position(|col| col.contains(window));
         let Some(column_idx) = column_idx else {
             return false;
         };
-        let column = &mut self.columns[column_idx];
+        let view_x = self.view_pos();
+        let column_x = self.column_x(column_idx);
+        let width = self.columns[column_idx].width();
+        let visible_width =
+            ((column_x + width).min(view_x + self.view_size.w) - column_x.max(view_x)).max(0.);
 
-        column.activate_window(window);
-        self.activate_column(column_idx);
+        self.columns[column_idx].activate_window(window);
+        if clicked && visible_width > width * 0.01 {
+            // The offset is relative to the active column. Rebase it to keep the
+            // displayed view fixed, and stop any previous scrolling animation.
+            self.view_offset = ViewOffset::Static(view_x - column_x);
+            self.active_column_idx = column_idx;
+            self.manually_panned = true;
+            self.activate_prev_column_on_removal = None;
+            self.view_offset_to_restore = None;
+            self.interactive_resize = None;
+        } else {
+            self.activate_column(column_idx);
+        }
 
         true
     }

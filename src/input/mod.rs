@@ -3092,7 +3092,7 @@ impl State {
                 }
 
                 if !is_overview_open {
-                    self.niri.layout.activate_window(&window);
+                    self.niri.layout.activate_window_on_click(&window);
                 }
 
                 // FIXME: granular.
